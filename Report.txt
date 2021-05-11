@@ -1,0 +1,64 @@
+REPORT:
+                                                         ------ How to start Distributed KV Store ------
+    REDIS
+        -To start the KV store, the proper redis servers must be in place.  To do this, I used an ubuntu shell and started a redis server on ports 6379 and 6380 using 
+        the following command in the ubuntu shell: redis-server --port 6379 and redis-server --port 6380.  this sets up the connection to the redis servers so we can
+        apply our GET/SET operations and store information.  Next I set up the server running on port 6380 as the replica slave to master server 6379 using the following
+        commands in ubuntu shell: 
+            redis-cli -p 6380    
+            SLAVEOF localhost 6379
+        This creates a replica of the main server that we can then send data to and read from.  I only implemented a single replica but more could be created using the
+        same approach. 
+    RUNNING 
+        -Now that the redis server and replica is up and running, you can start the distributed KV store properly.  At First I had the Driver.py program run the Server.py,
+        SeqReplica.py, and args[1] would be how many clients would run, allowing the user to choose.  There was an issue with this however that I couldn't manage to fix where
+        all the clients would run at he same time despite the sleep timer.  So, at this point, python Driver.py will spawn the server and the Replica Server.  I then open 3 more 
+        terminal windows and run python Client.py in each of them, or however many are desired.  The output is then logged into outputSeqMain.log and SequentialReplica.log.  
+        outputSeqMain.log is logging all SET/GET that is passed through server.py and SequentialReplica.log is all of the GET requests that the replica carries out.  This is
+        an overall view of how to run the program and what happens when it is ran.   
+
+
+    1. Low Level Key Value Store
+        For this project I attempted to implement redis as my lower level key value store.  I chose redis because it was the first option in the directions as an alternative
+        to what my original key value store, which was not as clean and did not come with an aditional 20% on the grading scale.  Redis comes with easy to use set and gets as
+        as well as built-in replication, which is exactly what is needed for this assignment.  I also implemented ZMQ which is a similar messaging library to sockets that can handle
+        many-to-many connections between endpoints, which seems more tailored to distributed applications than regular sockets.
+
+    2. Consistency Models
+        Sequential consistency is the only model that I was able to fully complete, although I did try eventual consistency but I'm not sure if it is fully functional.  For the
+        implementation of sequential consistency, the main idea is that each process has various SET/GET requests.  These requests will be done in a specific order within their
+        individual process.  While the processes are doing their seperate GET/SET requests, the various requests between processes can happen sequentially as long as the order is
+        kept within each individual process.  To implement this is easier said than done in my case, however essentially what I did was give each request within a given process an
+        ID and a timestamp as well as of course key and value and whether it is a SET or GET request.  Once the process starts, the order is shuffled and iterated through.  
+        After that, the requests are filtered by checking their timestamp and making sure the correct operation is occuring in order.  This way, no matter which process is making
+        a request, it will be in order.  There is also a random sleeptimer added to each client process when doing SET/GET requests to stagger the requests such that order can be
+        seen being consistent within the log file.  
+
+    3. Main Challenges
+        There were many challenges that I faced during the implementation of sequential consistency, however many of the problems were dealing with creating the replicas and connecting
+        them to the main server and client.  Redis and ZMQ gave me most of the issues ironically, as I thought using them would generally make it easier.  Creating a replica/slave of a
+        main server/master proved harder than i anticipated as at first I did not expect to have to start the redis servers seperately from the program.  However, once I figured out
+        how to work my way around redis it became much more intuitive.  ZMQ also gave me many hours of error handling which was fairly easy to know what went wrong yet difficult to fix.
+        ZMQ has a very strict recv/send policy where each REQ/REP (request/reply) program must follow the order of either send->recv->send->recv or recv->send->recv->send for their 
+        respective socket.  If there was a missing or extra recv or send then no messages could be passed and the broadcasts would be ruined.  Once I had all of the recv/send commands 
+        in their proper order, implementation was fairly easy.     
+
+    4. Client API
+        The API of this program revolves around the use of ZMQ and Redis and the communication between the main server and the replicas.  The client connects to a zmq REQ socket while 
+        the main server receives this connection.  This is how the client and main server communicate.  Through this connection, the client will send the various requests to the Server.  
+        Once the server receives these GET/SET requests, the server will process these requsts.  The replicas then will store the same data as the main server and thus 
+        any of them can be read from providing the correct Value from the given GET request, which is done in SeqReplica.py.  The main server handles all of the GET and SET requests by 
+        setting the appropriate values to the key/value store and then by reaching out to the replicas to return any GET requests.  As the Main server and the replicas share the same data,
+        anytime a GET request is done, it can be done through a replica.  If a SET request is to occur, then the main server performs a redis set operation and it is broadcasted to the replicas.
+        If the GET request occurs, the main server sends the request to the replica server and the GET request is handled in SeqReplica and then returned.  This is the basic API and design
+        of my Sequential Consistency model.    
+
+    5. Performance/Test Cases
+        In terms of performance, I believe this design is pretty fast and easy to understand and implement.  The average time it takes for two client to finish each of their 10 SET/GET requests
+        is about 12.3 seconds.  This could be done quicker if not for the sleep timers.  As for the test cases I implemented, I thought it would be best to take the data from the output log 
+        and iterate through each SET/GET request and make sure that each process has the correct request in order.  To do this I took all of the PID and put them into a dictionary.  Once in the dictionary
+        I iterated through the timestamps on each request and made sure they are in sequential order.  This seemed liek the best way to test sequential consistency and make sure that the order between 
+        processes was kept.  To run the test cases you first must run the program so that the output log is full.  Once it is full you can run SeqTest.py and it will parse the PID and time of each 
+        SET/GET request and return with passed test if they are all in order.  
+
+
