@@ -25,10 +25,7 @@ REPORT:
         many-to-many connections between endpoints, which seems more tailored to distributed applications than regular sockets.
 
     2. Consistency Models
-        Sequential consistency is the only model that I was able to fully complete, although I did try eventual consistency but I'm not sure if it is fully functional.  For the
-        implementation of sequential consistency, the main idea is that each process has various SET/GET requests.  These requests will be done in a specific order within their
-        individual process.  While the processes are doing their seperate GET/SET requests, the various requests between processes can happen sequentially as long as the order is
-        kept within each individual process.  To implement this is easier said than done in my case, however essentially what I did was give each request within a given process an
+         For the implementation of sequential consistency, the main idea is that each process has various SET/GET requests.  These requests will be done in a specific order              within their  individual process.  While the processes are doing their seperate GET/SET requests, the various requests between processes can happen sequentially as long          as the order is  kept within each individual process.  To implement this is easier said than done in my case, however essentially what I did was give each request                within a given process an
         ID and a timestamp as well as of course key and value and whether it is a SET or GET request.  Once the process starts, the order is shuffled and iterated through.  
         After that, the requests are filtered by checking their timestamp and making sure the correct operation is occuring in order.  This way, no matter which process is making
         a request, it will be in order.  There is also a random sleeptimer added to each client process when doing SET/GET requests to stagger the requests such that order can be
